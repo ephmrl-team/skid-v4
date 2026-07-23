@@ -55,6 +55,10 @@ func Unpack(packed []byte) (*SecretKeys, error) {
 	return &s, err
 }
 
+func DeriveAuthLookupID(recoveryKey []byte) string {
+	return base58.Encode(crypto.DeriveAuthLookupID(recoveryKey))
+}
+
 func GenerateUserID(ecdhPK []byte, mlkemPK []byte) string {
 	truncatedHash := crypto.HashPublicKeys(ecdhPK, mlkemPK)
 

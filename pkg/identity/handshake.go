@@ -27,26 +27,28 @@ func InitiateKeyExchange(sender *User, senderSecretKeys *SecretKeys, receiver *U
 	}
 
 	var (
-		ephemeralX448Public       []byte
-		ephemeralX448Secret       []byte
-		receiverMlKemCiphertext   []byte
-		receiverMlKemSharedSecret []byte
-		ecdhSharedSecret          []byte
-		syncMSK                   []byte
-		temp                      []byte
-		syncKey                   []byte
-		syncAAD                   []byte
-		syncKeyCiphertext         []byte
-		syncKeyNonce              []byte
-		material                  []byte
-		rootKey                   []byte
-		chatKey                   []byte
-		err                       error
+		ephemeralX448Public          []byte
+		ephemeralX448Secret          []byte
+		receiverMlKemCiphertext      []byte
+		receiverMlKemSharedSecret    []byte
+		staticStaticECDHSharedSecret []byte
+		ecdhSharedSecret             []byte
+		syncMSK                      []byte
+		temp                         []byte
+		syncKey                      []byte
+		syncAAD                      []byte
+		syncKeyCiphertext            []byte
+		syncKeyNonce                 []byte
+		material                     []byte
+		rootKey                      []byte
+		chatKey                      []byte
+		err                          error
 	)
 
 	defer func() {
 		crypto.Zero(receiverMlKemSharedSecret)
 		crypto.Zero(ecdhSharedSecret)
+		crypto.Zero(staticStaticECDHSharedSecret)
 		crypto.Zero(ephemeralX448Secret)
 
 		crypto.Zero(syncMSK)
@@ -71,7 +73,7 @@ func InitiateKeyExchange(sender *User, senderSecretKeys *SecretKeys, receiver *U
 		return nil, nil, nil, err
 	}
 
-	staticStaticECDHSharedSecret, err := crypto.DeriveECDHSharedSecret(senderSecretKeys.X448, receiver.PublicKeys.X448)
+	staticStaticECDHSharedSecret, err = crypto.DeriveECDHSharedSecret(senderSecretKeys.X448, receiver.PublicKeys.X448)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -156,22 +158,24 @@ func FinalizeKeyExchange(payload *HandshakePayload, sender *User, senderSecretKe
 	}
 
 	var (
-		senderMlKemSharedSecret   []byte
-		receiverMlKemSharedSecret []byte
-		ecdhSharedSecret          []byte
-		syncMSK                   []byte
-		temp                      []byte
-		syncKey                   []byte
-		material                  []byte
-		rootKey                   []byte
-		chatKey                   []byte
-		err                       error
+		senderMlKemSharedSecret      []byte
+		receiverMlKemSharedSecret    []byte
+		staticStaticECDHSharedSecret []byte
+		ecdhSharedSecret             []byte
+		syncMSK                      []byte
+		temp                         []byte
+		syncKey                      []byte
+		material                     []byte
+		rootKey                      []byte
+		chatKey                      []byte
+		err                          error
 	)
 
 	defer func() {
 		crypto.Zero(senderMlKemSharedSecret)
 		crypto.Zero(receiverMlKemSharedSecret)
 		crypto.Zero(ecdhSharedSecret)
+		crypto.Zero(staticStaticECDHSharedSecret)
 
 		crypto.Zero(temp)
 		crypto.Zero(syncMSK)
@@ -226,7 +230,7 @@ func FinalizeKeyExchange(payload *HandshakePayload, sender *User, senderSecretKe
 			return nil, nil, err
 		}
 
-		staticStaticECDHSharedSecret, err := crypto.DeriveECDHSharedSecret(receiverSecretKeys.X448, sender.PublicKeys.X448)
+		staticStaticECDHSharedSecret, err = crypto.DeriveECDHSharedSecret(receiverSecretKeys.X448, sender.PublicKeys.X448)
 		if err != nil {
 			return nil, nil, err
 		}

@@ -1,7 +1,9 @@
 package crypto
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -50,6 +52,21 @@ func HashPublicKeys(ecdhPK, mlkemPK []byte) []byte {
 
 	hash := blake2b.Sum256(combined)
 	return hash[:10]
+}
+
+func DeriveAuthLookupID(recoveryKey []byte) []byte {
+	var recoveryKeyCopy []byte
+
+	recoveryKeyCopy = make([]byte, len(recoveryKey))
+	copy(recoveryKeyCopy, recoveryKey)
+
+	defer Zero(recoveryKeyCopy)
+
+	h := hmac.New(sha256.New, recoveryKeyCopy)
+	h.Write([]byte("bloom:auth:token:v1"))
+	mac := h.Sum(nil)
+
+	return mac[:16]
 }
 
 func GenerateMessageInfo(idA, idB string) (string, error) {

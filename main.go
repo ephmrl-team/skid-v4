@@ -50,6 +50,10 @@ func main() {
 
 	fmt.Println()
 
+	fmt.Println(userAPrefix, "derived it's auth lookup ID:", identity.DeriveAuthLookupID(userARecoveryKey))
+
+	fmt.Println()
+
 	fmt.Println(userAPrefix, "Encrypting it's master key using recovery key...")
 	encryptedMasterKey, err := identity.EncryptMasterKey(userAMasterKey, userARecoveryKey, userA, secretA)
 	if err != nil {
