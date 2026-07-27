@@ -8,6 +8,7 @@ import (
 	"github.com/cloudflare/circl/sign/ed448"
 	"github.com/mr-tron/base58/base58"
 	"github.com/slipe-fun/skid-v4/internal/crypto"
+	"github.com/tink-crypto/tink-go/v2/subtle/random"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -65,36 +66,61 @@ func GenerateUserID(ecdhPK []byte, mlkemPK []byte) string {
 	return base58.Encode(truncatedHash)
 }
 
-func GenerateIdentity() (user *User, secret *SecretKeys, err error) {
+func GenerateIdentity() (*User, *SecretKeys, []byte, []byte, []byte, string, error) {
+	var err error
+
 	var mlKem768Secret, x448Secret, ed448Secret []byte
+	var rawRecoveryKey, recoveryKey, authKey, masterKey []byte
 
 	defer func() {
 		if err != nil {
 			crypto.Zero(mlKem768Secret)
 			crypto.Zero(x448Secret)
 			crypto.Zero(ed448Secret)
+
+			crypto.Zero(rawRecoveryKey)
+			crypto.Zero(recoveryKey)
+			crypto.Zero(authKey)
+			crypto.Zero(masterKey)
 		}
 	}()
+
+	rawRecoveryKey = random.GetRandomBytes(16)
+
+	authKey, err = crypto.HKDF(rawRecoveryKey, nil, "skid:v4:auth:lookup_id", 32)
+	if err != nil {
+		return nil, nil, nil, nil, nil, "", err
+	}
+	defer crypto.Zero(authKey)
+
+	lookupID := DeriveAuthLookupID(authKey)
+
+	recoveryKey, err = crypto.HKDF(rawRecoveryKey, nil, "skid:v4:encryption:recovery_key", 32)
+	if err != nil {
+		return nil, nil, nil, nil, nil, "", err
+	}
+
+	masterKey = random.GetRandomBytes(32)
 
 	var mlKem768Public []byte
 	mlKem768Public, mlKem768Secret, err = crypto.GenerateMLKEMKeyPair()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, nil, "", err
 	}
 
 	var x448Public []byte
 	x448Public, x448Secret, err = crypto.GenerateECDHKeyPair()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, nil, "", err
 	}
 
 	var ed448Public []byte
 	ed448Public, ed448Secret, err = crypto.GenerateEd448KeyPair()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, nil, "", err
 	}
 
-	user = &User{
+	user := &User{
 		ID: GenerateUserID(x448Public, mlKem768Public),
 		PublicKeys: PublicKeys{
 			MlKem768: mlKem768Public,
@@ -103,13 +129,13 @@ func GenerateIdentity() (user *User, secret *SecretKeys, err error) {
 		},
 	}
 
-	secret = &SecretKeys{
+	secret := &SecretKeys{
 		MlKem768: mlKem768Secret,
 		X448:     x448Secret,
 		Ed448:    ed448Secret,
 	}
 
-	return user, secret, nil
+	return user, secret, rawRecoveryKey, recoveryKey, masterKey, lookupID, nil
 }
 
 func NewSecretKeys(kem, ecdh, ed []byte) (secret *SecretKeys, err error) {
@@ -149,6 +175,27 @@ func NewSecretKeys(kem, ecdh, ed []byte) (secret *SecretKeys, err error) {
 	}
 
 	return secret, nil
+}
+
+func NewRecoveryKey(rawRecoveryKey []byte) ([]byte, string, error) {
+	if len(rawRecoveryKey) != 16 {
+		return nil, "", errors.New("invalid recovery key size: must be exactly 16 bytes")
+	}
+
+	authKey, err := crypto.HKDF(rawRecoveryKey, nil, "skid:v4:auth:lookup_id", 32)
+	if err != nil {
+		return nil, "", err
+	}
+	defer crypto.Zero(authKey)
+
+	lookupID := DeriveAuthLookupID(authKey)
+
+	recoveryKey, err := crypto.HKDF(rawRecoveryKey, nil, "skid:v4:encryption:recovery_key", 32)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return recoveryKey, lookupID, nil
 }
 
 func EncryptSecretKeys(user *User, userSecretKeys *SecretKeys, masterKey []byte) (*EncryptedSecretKeys, error) {

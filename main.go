@@ -6,11 +6,10 @@ import (
 
 	"github.com/slipe-fun/skid-v4/pkg/identity"
 	"github.com/slipe-fun/skid-v4/pkg/messages"
-	"github.com/tink-crypto/tink-go/v2/subtle/random"
 )
 
 func main() {
-	userA, secretA, err := identity.GenerateIdentity()
+	userA, secretA, _, userARecoveryKey, userAMasterKey, userALookupID, err := identity.GenerateIdentity()
 	if err != nil {
 		panic(err)
 	}
@@ -32,15 +31,11 @@ func main() {
 	}
 	defer restoredSecret.Wipe()
 
-	userB, secretB, err := identity.GenerateIdentity()
+	userB, secretB, _, _, _, userBLookupID, err := identity.GenerateIdentity()
 	if err != nil {
 		panic(err)
 	}
 	defer secretB.Wipe()
-
-	userARecoveryKey := random.GetRandomBytes(32)
-
-	userAMasterKey := random.GetRandomBytes(32)
 
 	userAPrefix := fmt.Sprintf("[User %s]", userA.ID)
 	userBPrefix := fmt.Sprintf("[User %s]", userB.ID)
@@ -50,7 +45,8 @@ func main() {
 
 	fmt.Println()
 
-	fmt.Println(userAPrefix, "derived it's auth lookup ID:", identity.DeriveAuthLookupID(userARecoveryKey))
+	fmt.Println(userAPrefix, "derived it's auth lookup ID:", userALookupID)
+	fmt.Println(userBPrefix, "derived it's auth lookup ID:", userBLookupID)
 
 	fmt.Println()
 

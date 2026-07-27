@@ -35,21 +35,7 @@ func EncryptMasterKey(masterKey []byte, recoveryKey []byte, user *User, userSecr
 		return nil, errors.New("user public keys are incomplete")
 	}
 
-	var (
-		derivedKey []byte
-		err        error
-	)
-
-	defer func() {
-		crypto.Zero(derivedKey)
-	}()
-
 	salt, err := crypto.RandomBytes(32)
-	if err != nil {
-		return nil, err
-	}
-
-	derivedKey, err = crypto.HKDF(recoveryKey, salt, "skid:v4:recovery_key", 32)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +46,7 @@ func EncryptMasterKey(masterKey []byte, recoveryKey []byte, user *User, userSecr
 		user.PublicKeys.Ed448,
 	)
 
-	ciphertext, nonce, err := crypto.Encrypt(derivedKey, masterKey, masterKeyAAD)
+	ciphertext, nonce, err := crypto.Encrypt(recoveryKey, masterKey, masterKeyAAD)
 	if err != nil {
 		return nil, err
 	}
@@ -116,13 +102,8 @@ func DecryptMasterKey(encryptedMasterKey *EncryptedMasterKey, recoveryKey []byte
 	}
 
 	var (
-		derivedKey []byte
-		err        error
+		err error
 	)
-
-	defer func() {
-		crypto.Zero(derivedKey)
-	}()
 
 	signedMessage := crypto.ConcatBytes(
 		encryptedMasterKey.Ciphertext,
@@ -143,18 +124,13 @@ func DecryptMasterKey(encryptedMasterKey *EncryptedMasterKey, recoveryKey []byte
 		return nil, errors.New("invalid Ed448 signature")
 	}
 
-	derivedKey, err = crypto.HKDF(recoveryKey, encryptedMasterKey.Salt, "skid:v4:recovery_key", 32)
-	if err != nil {
-		return nil, err
-	}
-
 	masterKeyAAD := crypto.BuildAAD("master_key",
 		user.PublicKeys.MlKem768,
 		user.PublicKeys.X448,
 		user.PublicKeys.Ed448,
 	)
 
-	masterKey, err := crypto.Decrypt(derivedKey, encryptedMasterKey.Ciphertext, encryptedMasterKey.Nonce, masterKeyAAD)
+	masterKey, err := crypto.Decrypt(recoveryKey, encryptedMasterKey.Ciphertext, encryptedMasterKey.Nonce, masterKeyAAD)
 	if err != nil {
 		return nil, err
 	}
