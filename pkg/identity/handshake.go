@@ -17,6 +17,7 @@ type HandshakePayload struct {
 	Version             []byte `json:"version"`
 	ReceiverCiphertext  []byte `json:"receiver_ciphertext"`
 	SenderEphemeralX448 []byte `json:"sender_ephemeral_x448"`
+	SenderSignature     []byte `json:"sender_signature"`
 	EncryptedSyncKey    EncryptedSyncKey
 }
 
@@ -136,10 +137,26 @@ func InitiateKeyExchange(sender *User, senderSecretKeys *SecretKeys, receiver *U
 		return nil, nil, nil, err
 	}
 
+	signedData := crypto.ConcatBytes(
+		contextData,
+		syncKeyCiphertext,
+		syncKeyNonce,
+	)
+
+	signature, err := crypto.SignEd448(
+		senderSecretKeys.Ed448,
+		signedData,
+		version.Label("handshake_init"),
+	)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	return &HandshakePayload{
 		Version:             version.Bytes(),
 		ReceiverCiphertext:  receiverMlKemCiphertext,
 		SenderEphemeralX448: ephemeralX448Public,
+		SenderSignature:     signature,
 		EncryptedSyncKey: EncryptedSyncKey{
 			Ciphertext: syncKeyCiphertext,
 			Nonce:      syncKeyNonce,
@@ -210,6 +227,25 @@ func FinalizeKeyExchange(payload *HandshakePayload, sender *User, senderSecretKe
 		payload.SenderEphemeralX448,
 		payload.ReceiverCiphertext,
 	)
+
+	signedData := crypto.ConcatBytes(
+		contextData,
+		payload.EncryptedSyncKey.Ciphertext,
+		payload.EncryptedSyncKey.Nonce,
+	)
+
+	valid, err := crypto.VerifyEd448(
+		sender.PublicKeys.Ed448,
+		signedData,
+		payload.SenderSignature,
+		version.Label("handshake_init"),
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !valid {
+		return nil, nil, errors.New("finalize: invalid sender signature")
+	}
 
 	sessionID := sha256.Sum256(contextData)
 
