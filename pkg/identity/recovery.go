@@ -4,9 +4,11 @@ import (
 	"errors"
 
 	"github.com/slipe-fun/skid-v4/internal/crypto"
+	"github.com/slipe-fun/skid-v4/pkg/protocol"
 )
 
 type EncryptedMasterKey struct {
+	Version    []byte `json:"version"`
 	Ciphertext []byte `json:"ciphertext"`
 	Nonce      []byte `json:"nonce"`
 	Salt       []byte `json:"salt"`
@@ -35,12 +37,15 @@ func EncryptMasterKey(masterKey []byte, recoveryKey []byte, user *User, userSecr
 		return nil, errors.New("user public keys are incomplete")
 	}
 
+	version := protocol.Current
+
 	salt, err := crypto.RandomBytes(32)
 	if err != nil {
 		return nil, err
 	}
 
 	masterKeyAAD := crypto.BuildAAD("master_key",
+		version,
 		user.PublicKeys.MlKem768,
 		user.PublicKeys.X448,
 		user.PublicKeys.Ed448,
@@ -52,6 +57,7 @@ func EncryptMasterKey(masterKey []byte, recoveryKey []byte, user *User, userSecr
 	}
 
 	messageToSign := crypto.ConcatBytes(
+		version.Bytes(),
 		ciphertext,
 		nonce,
 		salt,
@@ -66,6 +72,7 @@ func EncryptMasterKey(masterKey []byte, recoveryKey []byte, user *User, userSecr
 	}
 
 	return &EncryptedMasterKey{
+		Version:    version.Bytes(),
 		Ciphertext: ciphertext,
 		Nonce:      nonce,
 		Salt:       salt,
@@ -105,7 +112,16 @@ func DecryptMasterKey(encryptedMasterKey *EncryptedMasterKey, recoveryKey []byte
 		err error
 	)
 
+	version, err := protocol.Parse(encryptedMasterKey.Version)
+	if err != nil {
+		return nil, err
+	}
+	if err := version.Check(); err != nil {
+		return nil, err
+	}
+
 	signedMessage := crypto.ConcatBytes(
+		version.Bytes(),
 		encryptedMasterKey.Ciphertext,
 		encryptedMasterKey.Nonce,
 		encryptedMasterKey.Salt,
@@ -125,6 +141,7 @@ func DecryptMasterKey(encryptedMasterKey *EncryptedMasterKey, recoveryKey []byte
 	}
 
 	masterKeyAAD := crypto.BuildAAD("master_key",
+		version,
 		user.PublicKeys.MlKem768,
 		user.PublicKeys.X448,
 		user.PublicKeys.Ed448,

@@ -1,7 +1,9 @@
 package crypto
 
-func BuildAAD(aadType string, fields ...[]byte) []byte {
-	contextTag := []byte("skid:v4.1:" + aadType)
+import "github.com/slipe-fun/skid-v4/pkg/protocol"
+
+func BuildAAD(aadType string, version protocol.Version, fields ...[]byte) []byte {
+	contextTag := []byte(version.Label(aadType))
 
 	allFields := make([][]byte, 0, len(fields)+1)
 	allFields = append(allFields, contextTag)

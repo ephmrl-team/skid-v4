@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/slipe-fun/skid-v4/internal/crypto"
+	"github.com/slipe-fun/skid-v4/pkg/protocol"
 )
 
 type EncryptedSyncKey struct {
@@ -13,6 +14,7 @@ type EncryptedSyncKey struct {
 }
 
 type HandshakePayload struct {
+	Version             []byte `json:"version"`
 	ReceiverCiphertext  []byte `json:"receiver_ciphertext"`
 	SenderEphemeralX448 []byte `json:"sender_ephemeral_x448"`
 	EncryptedSyncKey    EncryptedSyncKey
@@ -78,7 +80,10 @@ func InitiateKeyExchange(sender *User, senderSecretKeys *SecretKeys, receiver *U
 		return nil, nil, nil, err
 	}
 
+	version := protocol.Current
+
 	contextData := crypto.ConcatBytes(
+		version.Bytes(),
 		[]byte(sender.ID),
 		[]byte(receiver.ID),
 		sender.PublicKeys.X448,
@@ -91,22 +96,23 @@ func InitiateKeyExchange(sender *User, senderSecretKeys *SecretKeys, receiver *U
 
 	sessionID := sha256.Sum256(contextData)
 
-	temp, err = crypto.HKDF(senderSecretKeys.X448, sessionID[:], "skid:v4.1:sync_step1", 32)
+	temp, err = crypto.HKDF(senderSecretKeys.X448, sessionID[:], version.Label("sync_step1"), 32)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	syncMSK, err = crypto.HKDF(senderSecretKeys.MlKem768, temp, "skid:v4.1:sync_master_key", 32)
+	syncMSK, err = crypto.HKDF(senderSecretKeys.MlKem768, temp, version.Label("sync_master_key"), 32)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	syncKey, err = crypto.HKDF(syncMSK, sessionID[:], "skid:v4.1:sync_key", 32)
+	syncKey, err = crypto.HKDF(syncMSK, sessionID[:], version.Label("sync_key"), 32)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	syncAAD = crypto.BuildAAD("sync_material",
+		version,
 		sessionID[:],
 		[]byte(sender.ID),
 		[]byte(receiver.ID),
@@ -120,17 +126,18 @@ func InitiateKeyExchange(sender *User, senderSecretKeys *SecretKeys, receiver *U
 		return nil, nil, nil, err
 	}
 
-	rootKey, err = crypto.HKDF(material, sessionID[:], "skid:v4.1:root_key", 32)
+	rootKey, err = crypto.HKDF(material, sessionID[:], version.Label("root_key"), 32)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	chatKey, err = crypto.HKDF(rootKey, sessionID[:], "skid:v4.1:chat_key", 32)
+	chatKey, err = crypto.HKDF(rootKey, sessionID[:], version.Label("chat_key"), 32)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	return &HandshakePayload{
+		Version:             version.Bytes(),
 		ReceiverCiphertext:  receiverMlKemCiphertext,
 		SenderEphemeralX448: ephemeralX448Public,
 		EncryptedSyncKey: EncryptedSyncKey{
@@ -184,7 +191,16 @@ func FinalizeKeyExchange(payload *HandshakePayload, sender *User, senderSecretKe
 		crypto.Zero(rootKey)
 	}()
 
+	version, err := protocol.Parse(payload.Version)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := version.Check(); err != nil {
+		return nil, nil, err
+	}
+
 	contextData := crypto.ConcatBytes(
+		version.Bytes(),
 		[]byte(sender.ID),
 		[]byte(receiver.ID),
 		sender.PublicKeys.X448,
@@ -198,22 +214,23 @@ func FinalizeKeyExchange(payload *HandshakePayload, sender *User, senderSecretKe
 	sessionID := sha256.Sum256(contextData)
 
 	if isSelf {
-		temp, err = crypto.HKDF(senderSecretKeys.X448, sessionID[:], "skid:v4.1:sync_step1", 32)
+		temp, err = crypto.HKDF(senderSecretKeys.X448, sessionID[:], version.Label("sync_step1"), 32)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		syncMSK, err = crypto.HKDF(senderSecretKeys.MlKem768, temp, "skid:v4.1:sync_master_key", 32)
+		syncMSK, err = crypto.HKDF(senderSecretKeys.MlKem768, temp, version.Label("sync_master_key"), 32)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		syncKey, err = crypto.HKDF(syncMSK, sessionID[:], "skid:v4.1:sync_key", 32)
+		syncKey, err = crypto.HKDF(syncMSK, sessionID[:], version.Label("sync_key"), 32)
 		if err != nil {
 			return nil, nil, err
 		}
 
 		syncAAD := crypto.BuildAAD("sync_material",
+			version,
 			sessionID[:],
 			[]byte(sender.ID),
 			[]byte(receiver.ID),
@@ -242,28 +259,28 @@ func FinalizeKeyExchange(payload *HandshakePayload, sender *User, senderSecretKe
 
 		material = crypto.ConcatBytes(receiverMlKemSharedSecret, ecdhSharedSecret, staticStaticECDHSharedSecret)
 
-		temp, err = crypto.HKDF(receiverSecretKeys.X448, sessionID[:], "skid:v4.1:sync_step1", 32)
+		temp, err = crypto.HKDF(receiverSecretKeys.X448, sessionID[:], version.Label("sync_step1"), 32)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		syncMSK, err = crypto.HKDF(receiverSecretKeys.MlKem768, temp, "skid:v4.1:sync_master_key", 32)
+		syncMSK, err = crypto.HKDF(receiverSecretKeys.MlKem768, temp, version.Label("sync_master_key"), 32)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		syncKey, err = crypto.HKDF(syncMSK, sessionID[:], "skid:v4.1:sync_key", 32)
+		syncKey, err = crypto.HKDF(syncMSK, sessionID[:], version.Label("sync_key"), 32)
 		if err != nil {
 			return nil, nil, err
 		}
 	}
 
-	rootKey, err = crypto.HKDF(material, sessionID[:], "skid:v4.1:root_key", 32)
+	rootKey, err = crypto.HKDF(material, sessionID[:], version.Label("root_key"), 32)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	chatKey, err = crypto.HKDF(rootKey, sessionID[:], "skid:v4.1:chat_key", 32)
+	chatKey, err = crypto.HKDF(rootKey, sessionID[:], version.Label("chat_key"), 32)
 	if err != nil {
 		return nil, nil, err
 	}

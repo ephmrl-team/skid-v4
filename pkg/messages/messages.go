@@ -8,10 +8,12 @@ import (
 
 	"github.com/slipe-fun/skid-v4/internal/crypto"
 	"github.com/slipe-fun/skid-v4/pkg/identity"
+	"github.com/slipe-fun/skid-v4/pkg/protocol"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
 type EncryptedMessage struct {
+	Version    []byte
 	Ciphertext []byte
 	Nonce      []byte
 	Salt       []byte
@@ -21,7 +23,7 @@ type Message struct {
 	Content   []byte
 	AuthorID  string
 	SyncTag   []byte
-	Timestamp int64
+	Timestamp int64 // Unix milliseconds
 }
 
 func Pack(m *Message) ([]byte, error) {
@@ -69,12 +71,14 @@ func Encrypt(key, content, syncKey []byte, me, recipient *identity.User) (*Encry
 		crypto.Zero(packedMessage)
 	}()
 
+	version := protocol.Current
+
 	salt, err := crypto.RandomBytes(32)
 	if err != nil {
 		return nil, err
 	}
 
-	messageInfo, err := crypto.GenerateMessageInfo(me.ID, recipient.ID)
+	messageInfo, err := crypto.GenerateMessageInfo(version, me.ID, recipient.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +96,7 @@ func Encrypt(key, content, syncKey []byte, me, recipient *identity.User) (*Encry
 	}
 
 	messageAAD := crypto.BuildAAD("message",
+		version,
 		[]byte(firstID),
 		[]byte(secondID),
 	)
@@ -126,6 +131,7 @@ func Encrypt(key, content, syncKey []byte, me, recipient *identity.User) (*Encry
 	}
 
 	return &EncryptedMessage{
+		Version:    version.Bytes(),
 		Ciphertext: ciphertext,
 		Nonce:      nonce,
 		Salt:       salt,
@@ -177,7 +183,15 @@ func Decrypt(key []byte, encryptedMessage EncryptedMessage, syncKey []byte, me, 
 		crypto.Zero(payloadData)
 	}()
 
-	messageInfo, err := crypto.GenerateMessageInfo(me.ID, recipient.ID)
+	version, err := protocol.Parse(encryptedMessage.Version)
+	if err != nil {
+		return nil, err
+	}
+	if err := version.Check(); err != nil {
+		return nil, err
+	}
+
+	messageInfo, err := crypto.GenerateMessageInfo(version, me.ID, recipient.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -195,6 +209,7 @@ func Decrypt(key []byte, encryptedMessage EncryptedMessage, syncKey []byte, me, 
 	}
 
 	messageAAD := crypto.BuildAAD("message",
+		version,
 		[]byte(firstID),
 		[]byte(secondID),
 	)
@@ -209,7 +224,7 @@ func Decrypt(key []byte, encryptedMessage EncryptedMessage, syncKey []byte, me, 
 		return nil, err
 	}
 
-	timestampBytes := make([]byte, 8)
+	timestampBytes := make([]byte, 8) // Unix milliseconds
 	binary.BigEndian.PutUint64(timestampBytes, uint64(unpackedMessage.Timestamp))
 
 	payloadData = crypto.ConcatBytes(timestampBytes, []byte(me.ID), unpackedMessage.Content)

@@ -8,8 +8,14 @@ import (
 	"github.com/cloudflare/circl/sign/ed448"
 	"github.com/mr-tron/base58/base58"
 	"github.com/slipe-fun/skid-v4/internal/crypto"
+	"github.com/slipe-fun/skid-v4/pkg/protocol"
 	"github.com/tink-crypto/tink-go/v2/subtle/random"
 	"github.com/vmihailenco/msgpack/v5"
+)
+
+const (
+	derivationAuthLookupID = "skid:auth:lookup_id"
+	derivationRecoveryKey  = "skid:encryption:recovery_key"
 )
 
 type PublicKeys struct {
@@ -25,6 +31,7 @@ type SecretKeys struct {
 }
 
 type EncryptedSecretKeys struct {
+	Version    []byte `json:"version"`
 	Ciphertext []byte `json:"ciphertext"`
 	Nonce      []byte `json:"nonce"`
 	Salt       []byte `json:"salt"`
@@ -87,7 +94,7 @@ func GenerateIdentity() (*User, *SecretKeys, []byte, []byte, []byte, string, err
 
 	rawRecoveryKey = random.GetRandomBytes(16)
 
-	authKey, err = crypto.HKDF(rawRecoveryKey, nil, "skid:v4.1:auth:lookup_id", 32)
+	authKey, err = crypto.HKDF(rawRecoveryKey, nil, derivationAuthLookupID, 32)
 	if err != nil {
 		return nil, nil, nil, nil, nil, "", err
 	}
@@ -95,7 +102,7 @@ func GenerateIdentity() (*User, *SecretKeys, []byte, []byte, []byte, string, err
 
 	lookupID := DeriveAuthLookupID(authKey)
 
-	recoveryKey, err = crypto.HKDF(rawRecoveryKey, nil, "skid:v4.1:encryption:recovery_key", 32)
+	recoveryKey, err = crypto.HKDF(rawRecoveryKey, nil, derivationRecoveryKey, 32)
 	if err != nil {
 		return nil, nil, nil, nil, nil, "", err
 	}
@@ -182,7 +189,7 @@ func NewRecoveryKey(rawRecoveryKey []byte) ([]byte, string, error) {
 		return nil, "", errors.New("invalid recovery key size: must be exactly 16 bytes")
 	}
 
-	authKey, err := crypto.HKDF(rawRecoveryKey, nil, "skid:v4.1:auth:lookup_id", 32)
+	authKey, err := crypto.HKDF(rawRecoveryKey, nil, derivationAuthLookupID, 32)
 	if err != nil {
 		return nil, "", err
 	}
@@ -190,7 +197,7 @@ func NewRecoveryKey(rawRecoveryKey []byte) ([]byte, string, error) {
 
 	lookupID := DeriveAuthLookupID(authKey)
 
-	recoveryKey, err := crypto.HKDF(rawRecoveryKey, nil, "skid:v4.1:encryption:recovery_key", 32)
+	recoveryKey, err := crypto.HKDF(rawRecoveryKey, nil, derivationRecoveryKey, 32)
 	if err != nil {
 		return nil, "", err
 	}
@@ -210,6 +217,8 @@ func EncryptSecretKeys(user *User, userSecretKeys *SecretKeys, masterKey []byte)
 		crypto.Zero(derivedKey)
 	}()
 
+	version := protocol.Current
+
 	packedSecretKeys, err = userSecretKeys.Pack()
 	if err != nil {
 		return nil, err
@@ -220,12 +229,13 @@ func EncryptSecretKeys(user *User, userSecretKeys *SecretKeys, masterKey []byte)
 		return nil, err
 	}
 
-	derivedKey, err = crypto.HKDF(masterKey, salt, "skid:v4.1:master_key", 32)
+	derivedKey, err = crypto.HKDF(masterKey, salt, version.Label("encryption:master_key"), 32)
 	if err != nil {
 		return nil, err
 	}
 
 	secretKeysAAD := crypto.BuildAAD("secret_keys",
+		version,
 		user.PublicKeys.MlKem768,
 		user.PublicKeys.X448,
 		user.PublicKeys.Ed448,
@@ -237,6 +247,7 @@ func EncryptSecretKeys(user *User, userSecretKeys *SecretKeys, masterKey []byte)
 	}
 
 	messageToSign := crypto.ConcatBytes(
+		version.Bytes(),
 		ciphertext,
 		nonce,
 		salt,
@@ -251,6 +262,7 @@ func EncryptSecretKeys(user *User, userSecretKeys *SecretKeys, masterKey []byte)
 	}
 
 	return &EncryptedSecretKeys{
+		Version:    version.Bytes(),
 		Ciphertext: ciphertext,
 		Nonce:      nonce,
 		Salt:       salt,
@@ -270,7 +282,16 @@ func DecryptSecretKeys(encryptedSecretKeys *EncryptedSecretKeys, user *User, mas
 		crypto.Zero(packedSecretKeys)
 	}()
 
+	version, err := protocol.Parse(encryptedSecretKeys.Version)
+	if err != nil {
+		return nil, err
+	}
+	if err := version.Check(); err != nil {
+		return nil, err
+	}
+
 	signedMessage := crypto.ConcatBytes(
+		version.Bytes(),
 		encryptedSecretKeys.Ciphertext,
 		encryptedSecretKeys.Nonce,
 		encryptedSecretKeys.Salt,
@@ -289,12 +310,13 @@ func DecryptSecretKeys(encryptedSecretKeys *EncryptedSecretKeys, user *User, mas
 		return nil, errors.New("invalid Ed448 signature")
 	}
 
-	derivedKey, err = crypto.HKDF(masterKey, encryptedSecretKeys.Salt, "skid:v4.1:master_key", 32)
+	derivedKey, err = crypto.HKDF(masterKey, encryptedSecretKeys.Salt, version.Label("encryption:master_key"), 32)
 	if err != nil {
 		return nil, err
 	}
 
 	secretKeysAAD := crypto.BuildAAD("secret_keys",
+		version,
 		user.PublicKeys.MlKem768,
 		user.PublicKeys.X448,
 		user.PublicKeys.Ed448,

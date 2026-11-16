@@ -9,8 +9,11 @@ import (
 	"fmt"
 	"runtime"
 
+	"github.com/slipe-fun/skid-v4/pkg/protocol"
 	"golang.org/x/crypto/blake2b"
 )
+
+const authTokenLabel = "skid:auth:token"
 
 func ConcatBytes(fields ...[]byte) []byte {
 	totalLen := 0
@@ -63,13 +66,13 @@ func DeriveAuthLookupID(recoveryKey []byte) []byte {
 	defer Zero(recoveryKeyCopy)
 
 	h := hmac.New(sha256.New, recoveryKeyCopy)
-	h.Write([]byte("bloom:auth:token:v1"))
+	h.Write([]byte(authTokenLabel))
 	mac := h.Sum(nil)
 
 	return mac[:16]
 }
 
-func GenerateMessageInfo(idA, idB string) (string, error) {
+func GenerateMessageInfo(version protocol.Version, idA, idB string) (string, error) {
 	if idA == "" || idB == "" {
 		return "", errors.New("info generator: user IDs cannot be empty")
 	}
@@ -82,6 +85,6 @@ func GenerateMessageInfo(idA, idB string) (string, error) {
 		second = idA
 	}
 
-	infoString := fmt.Sprintf("skid:v4.1:message:%s:%s", first, second)
+	infoString := fmt.Sprintf("%s:%s:%s", version.Label("message"), first, second)
 	return infoString, nil
 }
