@@ -96,7 +96,7 @@ func Encrypt(key, content, syncKey []byte, me, recipient *identity.User) (*Encry
 		[]byte(secondID),
 	)
 
-	timestamp := time.Now().Unix()
+	timestamp := time.Now().UnixMilli()
 
 	timestampBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(timestampBytes, uint64(timestamp))

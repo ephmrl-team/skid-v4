@@ -87,7 +87,7 @@ func GenerateIdentity() (*User, *SecretKeys, []byte, []byte, []byte, string, err
 
 	rawRecoveryKey = random.GetRandomBytes(16)
 
-	authKey, err = crypto.HKDF(rawRecoveryKey, nil, "skid:v4:auth:lookup_id", 32)
+	authKey, err = crypto.HKDF(rawRecoveryKey, nil, "skid:v4.1:auth:lookup_id", 32)
 	if err != nil {
 		return nil, nil, nil, nil, nil, "", err
 	}
@@ -95,7 +95,7 @@ func GenerateIdentity() (*User, *SecretKeys, []byte, []byte, []byte, string, err
 
 	lookupID := DeriveAuthLookupID(authKey)
 
-	recoveryKey, err = crypto.HKDF(rawRecoveryKey, nil, "skid:v4:encryption:recovery_key", 32)
+	recoveryKey, err = crypto.HKDF(rawRecoveryKey, nil, "skid:v4.1:encryption:recovery_key", 32)
 	if err != nil {
 		return nil, nil, nil, nil, nil, "", err
 	}
@@ -182,7 +182,7 @@ func NewRecoveryKey(rawRecoveryKey []byte) ([]byte, string, error) {
 		return nil, "", errors.New("invalid recovery key size: must be exactly 16 bytes")
 	}
 
-	authKey, err := crypto.HKDF(rawRecoveryKey, nil, "skid:v4:auth:lookup_id", 32)
+	authKey, err := crypto.HKDF(rawRecoveryKey, nil, "skid:v4.1:auth:lookup_id", 32)
 	if err != nil {
 		return nil, "", err
 	}
@@ -190,7 +190,7 @@ func NewRecoveryKey(rawRecoveryKey []byte) ([]byte, string, error) {
 
 	lookupID := DeriveAuthLookupID(authKey)
 
-	recoveryKey, err := crypto.HKDF(rawRecoveryKey, nil, "skid:v4:encryption:recovery_key", 32)
+	recoveryKey, err := crypto.HKDF(rawRecoveryKey, nil, "skid:v4.1:encryption:recovery_key", 32)
 	if err != nil {
 		return nil, "", err
 	}
@@ -220,7 +220,7 @@ func EncryptSecretKeys(user *User, userSecretKeys *SecretKeys, masterKey []byte)
 		return nil, err
 	}
 
-	derivedKey, err = crypto.HKDF(masterKey, salt, "skid:v4:master_key", 32)
+	derivedKey, err = crypto.HKDF(masterKey, salt, "skid:v4.1:master_key", 32)
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +289,7 @@ func DecryptSecretKeys(encryptedSecretKeys *EncryptedSecretKeys, user *User, mas
 		return nil, errors.New("invalid Ed448 signature")
 	}
 
-	derivedKey, err = crypto.HKDF(masterKey, encryptedSecretKeys.Salt, "skid:v4:master_key", 32)
+	derivedKey, err = crypto.HKDF(masterKey, encryptedSecretKeys.Salt, "skid:v4.1:master_key", 32)
 	if err != nil {
 		return nil, err
 	}
