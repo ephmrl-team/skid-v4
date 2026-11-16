@@ -67,8 +67,8 @@ func DeriveAuthLookupID(recoveryKey []byte) string {
 	return base58.Encode(crypto.DeriveAuthLookupID(recoveryKey))
 }
 
-func GenerateUserID(ecdhPK []byte, mlkemPK []byte) string {
-	truncatedHash := crypto.HashPublicKeys(ecdhPK, mlkemPK)
+func GenerateUserID(edPK, ecdhPK, mlkemPK []byte) string {
+	truncatedHash := crypto.HashPublicKeys(edPK, ecdhPK, mlkemPK)
 
 	return base58.Encode(truncatedHash)
 }
@@ -128,7 +128,7 @@ func GenerateIdentity() (*User, *SecretKeys, []byte, []byte, []byte, string, err
 	}
 
 	user := &User{
-		ID: GenerateUserID(x448Public, mlKem768Public),
+		ID: GenerateUserID(ed448Public, x448Public, mlKem768Public),
 		PublicKeys: PublicKeys{
 			MlKem768: mlKem768Public,
 			X448:     x448Public,
