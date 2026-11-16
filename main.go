@@ -16,7 +16,7 @@ func main() {
 	defer secretA.Wipe()
 
 	restoredUser := identity.User{
-		ID: identity.GenerateUserID(userA.PublicKeys.X448, userA.PublicKeys.MlKem768),
+		ID: identity.GenerateUserID(userA.PublicKeys.Ed448, userA.PublicKeys.X448, userA.PublicKeys.MlKem768),
 		PublicKeys: identity.PublicKeys{
 			MlKem768: userA.PublicKeys.MlKem768,
 			X448:     userA.PublicKeys.X448,
@@ -128,7 +128,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(userAPrefix, "Message encrypted!")
+	fmt.Println(userAPrefix, "Message encrypted! Ciphertext length:", len(encryptedMsg1.Ciphertext))
 
 	fmt.Println()
 

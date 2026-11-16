@@ -125,7 +125,13 @@ func Encrypt(key, content, syncKey []byte, me, recipient *identity.User) (*Encry
 		return nil, err
 	}
 
-	ciphertext, nonce, err := crypto.Encrypt(derivedKey, packedMessage, messageAAD)
+	plaintext, err := crypto.Pad(packedMessage)
+	if err != nil {
+		return nil, err
+	}
+	defer crypto.Zero(plaintext)
+
+	ciphertext, nonce, err := crypto.Encrypt(derivedKey, plaintext, messageAAD)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +220,12 @@ func Decrypt(key []byte, encryptedMessage EncryptedMessage, syncKey []byte, me, 
 		[]byte(secondID),
 	)
 
-	packedMessage, err = crypto.Decrypt(derivedKey, encryptedMessage.Ciphertext, encryptedMessage.Nonce, messageAAD)
+	plaintext, err := crypto.Decrypt(derivedKey, encryptedMessage.Ciphertext, encryptedMessage.Nonce, messageAAD)
+	if err != nil {
+		return nil, err
+	}
+
+	packedMessage, err = crypto.Unpad(plaintext)
 	if err != nil {
 		return nil, err
 	}
