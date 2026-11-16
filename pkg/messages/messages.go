@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/slipe-fun/skid-v4/internal/crypto"
@@ -37,18 +38,12 @@ func Unpack(packed []byte) (*Message, error) {
 }
 
 func Encrypt(key, content, syncKey []byte, me, recipient *identity.User) (*EncryptedMessage, error) {
-	if me == nil {
-		return nil, errors.New("sender (me) cannot be nil")
-	}
-	if recipient == nil {
-		return nil, errors.New("recipient cannot be nil")
+	if err := me.Validate(); err != nil {
+		return nil, fmt.Errorf("sender: %s", err)
 	}
 
-	if me.ID == "" {
-		return nil, errors.New("sender ID cannot be empty")
-	}
-	if recipient.ID == "" {
-		return nil, errors.New("recipient ID cannot be empty")
+	if err := recipient.Validate(); err != nil {
+		return nil, fmt.Errorf("sender: %s", err)
 	}
 
 	if len(key) == 0 {
@@ -145,18 +140,12 @@ func Encrypt(key, content, syncKey []byte, me, recipient *identity.User) (*Encry
 }
 
 func Decrypt(key []byte, encryptedMessage EncryptedMessage, syncKey []byte, me, recipient *identity.User) (*Message, error) {
-	if me == nil {
-		return nil, errors.New("recipient (me) cannot be nil")
-	}
-	if recipient == nil {
-		return nil, errors.New("sender (recipient) cannot be nil")
+	if err := me.Validate(); err != nil {
+		return nil, fmt.Errorf("sender: %s", err)
 	}
 
-	if me.ID == "" {
-		return nil, errors.New("recipient ID cannot be empty")
-	}
-	if recipient.ID == "" {
-		return nil, errors.New("sender ID cannot be empty")
+	if err := recipient.Validate(); err != nil {
+		return nil, fmt.Errorf("sender: %s", err)
 	}
 
 	if len(key) == 0 {

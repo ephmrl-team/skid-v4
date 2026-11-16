@@ -43,6 +43,28 @@ type User struct {
 	PublicKeys PublicKeys `json:"public_keys"`
 }
 
+func (u *User) Validate() error {
+	if u == nil {
+		return errors.New("user cannot be nil")
+	}
+	if u.ID == "" {
+		return errors.New("user ID cannot be empty")
+	}
+	if len(u.PublicKeys.Ed448) != ed448.PublicKeySize {
+		return errors.New("invalid Ed448 public key size: must be exactly 57 bytes")
+	}
+	if len(u.PublicKeys.X448) != x448.Size {
+		return errors.New("invalid X448 public key size: must be exactly 56 bytes")
+	}
+	if len(u.PublicKeys.MlKem768) != mlkem768.PublicKeySize {
+		return errors.New("invalid ML-KEM-768 public key size: must be exactly 1184 bytes")
+	}
+	if u.ID != GenerateUserID(u.PublicKeys.Ed448, u.PublicKeys.X448, u.PublicKeys.MlKem768) {
+		return errors.New("user ID does not match public keys")
+	}
+	return nil
+}
+
 func (s *SecretKeys) Wipe() {
 	if s == nil {
 		return

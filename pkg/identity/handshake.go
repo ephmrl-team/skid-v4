@@ -3,6 +3,7 @@ package identity
 import (
 	"crypto/sha256"
 	"errors"
+	"fmt"
 
 	"github.com/slipe-fun/skid-v4/internal/crypto"
 	"github.com/slipe-fun/skid-v4/pkg/protocol"
@@ -22,9 +23,14 @@ type HandshakePayload struct {
 }
 
 func InitiateKeyExchange(sender *User, senderSecretKeys *SecretKeys, receiver *User) (*HandshakePayload, []byte, []byte, error) {
-	if sender == nil || receiver == nil {
-		return nil, nil, nil, errors.New("initiate: sender and receiver cannot be nil")
+	if err := sender.Validate(); err != nil {
+		return nil, nil, nil, fmt.Errorf("sender: %s", err)
 	}
+
+	if err := receiver.Validate(); err != nil {
+		return nil, nil, nil, fmt.Errorf("sender: %s", err)
+	}
+
 	if senderSecretKeys == nil {
 		return nil, nil, nil, errors.New("initiate: senderSecretKeys cannot be nil")
 	}
@@ -168,9 +174,15 @@ func FinalizeKeyExchange(payload *HandshakePayload, sender *User, senderSecretKe
 	if payload == nil {
 		return nil, nil, errors.New("finalize: payload cannot be nil")
 	}
-	if sender == nil || receiver == nil {
-		return nil, nil, errors.New("finalize: sender and receiver cannot be nil")
+
+	if err := sender.Validate(); err != nil {
+		return nil, nil, fmt.Errorf("initiate: sender: %w", err)
 	}
+
+	if err := receiver.Validate(); err != nil {
+		return nil, nil, fmt.Errorf("initiate: receiver: %w", err)
+	}
+
 	if isSelf {
 		if senderSecretKeys == nil {
 			return nil, nil, errors.New("finalize: senderSecretKeys cannot be nil when isSelf is true")
