@@ -66,7 +66,7 @@ func EncryptMasterKey(masterKey []byte, recoveryKey []byte, user *User, userSecr
 		user.PublicKeys.Ed448,
 	)
 
-	signature, err := crypto.SignEd448(userSecretKeys.Ed448, messageToSign, "")
+	signature, err := crypto.SignEd448(userSecretKeys.Ed448, messageToSign, version.Label("master_key"))
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func DecryptMasterKey(encryptedMasterKey *EncryptedMasterKey, recoveryKey []byte
 	)
 
 	var isSignatureValid bool
-	isSignatureValid, err = crypto.VerifyEd448(user.PublicKeys.Ed448, signedMessage, encryptedMasterKey.Signature, "")
+	isSignatureValid, err = crypto.VerifyEd448(user.PublicKeys.Ed448, signedMessage, encryptedMasterKey.Signature, version.Label("master_key"))
 	if err != nil {
 		return nil, err
 	}

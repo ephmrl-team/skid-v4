@@ -278,7 +278,11 @@ func EncryptSecretKeys(user *User, userSecretKeys *SecretKeys, masterKey []byte)
 		user.PublicKeys.Ed448,
 	)
 
-	signature, err := crypto.SignEd448(userSecretKeys.Ed448, messageToSign, "")
+	signature, err := crypto.SignEd448(
+		userSecretKeys.Ed448,
+		messageToSign,
+		version.Label("secret_keys"),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -323,7 +327,12 @@ func DecryptSecretKeys(encryptedSecretKeys *EncryptedSecretKeys, user *User, mas
 	)
 
 	var isSignatureValid bool
-	isSignatureValid, err = crypto.VerifyEd448(user.PublicKeys.Ed448, signedMessage, encryptedSecretKeys.Signature, "")
+	isSignatureValid, err = crypto.VerifyEd448(
+		user.PublicKeys.Ed448,
+		signedMessage,
+		encryptedSecretKeys.Signature,
+		version.Label("secret_keys"),
+	)
 	if err != nil {
 		return nil, err
 	}
