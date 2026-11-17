@@ -37,7 +37,7 @@ func (version Version) Check() error {
 }
 
 func (version Version) Label(component string) string {
-	return fmt.Sprintf("%s:v%d:%s", Name, version.Major, component)
+	return fmt.Sprintf("%s:v%s:%s", Name, version.String(), component)
 }
 
 var (

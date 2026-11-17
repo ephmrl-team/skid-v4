@@ -24,11 +24,11 @@ type HandshakePayload struct {
 
 func InitiateKeyExchange(sender *User, senderSecretKeys *SecretKeys, receiver *User) (*HandshakePayload, []byte, []byte, error) {
 	if err := sender.Validate(); err != nil {
-		return nil, nil, nil, fmt.Errorf("sender: %s", err)
+		return nil, nil, nil, fmt.Errorf("initiate: sender: %w", err)
 	}
 
 	if err := receiver.Validate(); err != nil {
-		return nil, nil, nil, fmt.Errorf("sender: %s", err)
+		return nil, nil, nil, fmt.Errorf("initiate: receiver: %w", err)
 	}
 
 	if senderSecretKeys == nil {
@@ -176,11 +176,11 @@ func FinalizeKeyExchange(payload *HandshakePayload, sender *User, senderSecretKe
 	}
 
 	if err := sender.Validate(); err != nil {
-		return nil, nil, fmt.Errorf("initiate: sender: %w", err)
+		return nil, nil, fmt.Errorf("finalize: sender: %w", err)
 	}
 
 	if err := receiver.Validate(); err != nil {
-		return nil, nil, fmt.Errorf("initiate: receiver: %w", err)
+		return nil, nil, fmt.Errorf("finalize: receiver: %w", err)
 	}
 
 	if isSelf {
